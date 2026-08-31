@@ -6,6 +6,16 @@
 <title>이샘사회역사학원 출석·수업료 관리</title>
 <meta name="theme-color" content="#005152">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>
+if("serviceWorker" in navigator && location.protocol === "https:"){
+  window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="이샘 출석부">
@@ -233,6 +243,10 @@
       </div>
       <p class="meta" style="margin-top:8px">🔒 학원 코드를 아는 기기만 데이터에 접근합니다. 코드는 길고 추측 어렵게 설정하세요.</p>
     </div>
+    <div class="card">
+      <b style="color:var(--teal)">🔍 화면 크기</b>
+      <div style="display:flex;gap:6px;margin-top:8px" id="uiScaleBtns"></div>
+    </div>
   </section>
 
   <!-- ── 결제 ── -->
@@ -430,6 +444,24 @@ async function rawGet(k){
   if(storageMode==="local"){ try{ return localStorage.getItem(k); }catch(e){} }
   return null;
 }
+// ── 🔍 화면 크기 ──
+const UI_SCALES = [["90","작게"],["100","보통"],["115","크게"],["130","아주 크게"]];
+function applyUiScale(){
+  const v = Number(settings.uiScale || 100);
+  document.body.style.zoom = v/100;
+}
+function setUiScale(v){
+  settings.uiScale = Number(v);
+  save(); applyUiScale(); renderUiScale();
+  toast("화면 크기: " + (UI_SCALES.find(s=>Number(s[0])===Number(v))||["","보통"])[1]);
+}
+function renderUiScale(){
+  const el = document.getElementById("uiScaleBtns");
+  if(!el) return;
+  const cur = Number(settings.uiScale || 100);
+  el.innerHTML = UI_SCALES.map(([v,l])=>`<button class="switch${cur===Number(v)?" on":""}" style="flex:1" onclick="setUiScale(${v})">${l}</button>`).join("");
+}
+
 // ── ☁ Firebase 기기 동기화 ──
 const SYNC_KEY = KEY + "-synccfg";
 let syncOn = false, syncDb = null, syncUnsub = null, syncPushTimer = null, applyingRemote = false;
@@ -563,6 +595,8 @@ async function load(){
   if(migrated) await save();
   render();
   updateStorageBadge();
+  applyUiScale();
+  renderUiScale();
   renderSyncCard();
   if(getSyncCfg()) initSync(false);
   if(storageMode==="none") toast("⚠ 자동 저장이 안 되는 환경 — 백업 기능을 사용하세요");
