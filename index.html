@@ -913,7 +913,7 @@ function toggleStHist(pid){ statusHistPid = statusHistPid===pid ? null : pid; re
 const isPaused = s => !!s.pause;
 
 // ── 상태 변경 모달 ──
-function openStatusModal(id){
+function openStatusModal(id, focus){
   modalSid = id;
   const s = students.find(x=>x.id===id); if(!s) return;
   const mb = document.getElementById("statusModalBody");
@@ -939,7 +939,7 @@ function openStatusModal(id){
         <button class="btn span2" style="background:#B45309" onclick="doPause()">휴원 처리</button>
       </div>
     </div>
-    <div class="editbox" style="border-left:4px solid #B3261E">
+    <div class="editbox" id="md-leave-sec" style="border-left:4px solid #B3261E">
       <b style="color:#B3261E;font-size:13px">🚪 퇴원 처리</b>
       <div class="form-grid" style="margin-top:8px">
         <div><select id="md-lreason"><option value="">퇴원 사유 선택</option><option>진학</option><option>이사</option><option>수강중단</option><option>타학원 이동</option><option>기타</option></select></div>
@@ -948,6 +948,16 @@ function openStatusModal(id){
       </div>
     </div>`;
   document.getElementById("statusModal").style.display = "flex";
+  if(focus==="leave"){
+    setTimeout(()=>{
+      const el = document.getElementById("md-leave-sec");
+      if(el){
+        el.scrollIntoView({block:"start", behavior:"smooth"});
+        el.style.boxShadow = "0 0 0 3px rgba(179,38,30,.4)";
+        setTimeout(()=>{ el.style.boxShadow = ""; }, 1800);
+      }
+    }, 80);
+  }
 }
 function closeStatusModal(){ modalSid = null; document.getElementById("statusModal").style.display = "none"; }
 
@@ -1404,6 +1414,7 @@ function render(){
           <button class="btn ghost mini" onclick="toggleHistory('${s.id}')">${open?"기록 닫기":"출석 기록"}</button>
           <button class="btn mini" onclick="manualPaid('${s.id}')">결제 처리</button>
           <button class="btn ghost mini" onclick="openStatusModal('${s.id}')">상태 변경</button>
+          <button class="btn danger" onclick="openStatusModal('${s.id}','leave')">🚪 퇴원</button>
         </div>
       </div>
       ${open ? historyHTML(s) : ""}
