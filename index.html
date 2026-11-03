@@ -232,14 +232,26 @@ if("serviceWorker" in navigator && location.protocol === "https:"){
     <div class="card">
       <b style="color:var(--teal)">☁ 기기 동기화 (Firebase)</b>
       <div id="syncFormArea">
-        <p class="meta" style="margin:6px 0 8px">폰·태블릿 등 여러 기기에서 같은 데이터를 실시간으로 공유합니다. console.firebase.google.com → 프로젝트 만들기 → Firestore Database 만들기 → 웹 앱(&lt;/&gt;) 등록 후, 발급되는 firebaseConfig 코드를 통째로 붙여넣으세요.</p>
-        <textarea id="syncCfg" style="height:84px;font-size:12px;font-family:monospace" placeholder='const firebaseConfig = { apiKey: "...", projectId: "...", ... } 전체를 그대로 붙여넣기'></textarea>
-        <input id="syncCode" placeholder="학원 코드 (8자 이상, 비밀번호처럼 모든 기기에 동일 입력)" style="margin-top:8px">
+        <p class="meta" style="margin:6px 0 8px">폰·태블릿·PC에서 같은 데이터를 실시간으로 공유합니다. 학원 Firebase(isaem)가 이미 설정돼 있어 <b>학원 코드만 입력</b>하면 됩니다.</p>
+        <input id="syncCode" placeholder="학원 코드 (모든 기기에 동일하게 입력)" autocapitalize="off" autocomplete="off" spellcheck="false">
+        <details style="margin-top:6px"><summary class="meta" style="cursor:pointer">다른 Firebase 프로젝트 사용 (고급)</summary>
+          <textarea id="syncCfg" style="height:84px;font-size:12px;font-family:monospace;margin-top:6px" placeholder='비워 두면 학원 기본 설정(isaem) 사용'></textarea>
+        </details>
         <button class="btn" style="width:100%;margin-top:8px" onclick="connectSync()">동기화 연결</button>
       </div>
       <div id="syncOnArea" style="display:none">
         <p class="meta" style="margin:6px 0 8px" id="syncStatus"></p>
-        <button class="btn ghost mini" onclick="disconnectSync()">연결 해제</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn mini" onclick="showSyncInfo()">🔑 연결 정보 보기 (다른 기기에 입력용)</button>
+          <button class="btn ghost mini" onclick="disconnectSync()">연결 해제</button>
+        </div>
+        <div id="syncInfoBox" style="display:none;margin-top:8px">
+          <label class="small">학원 코드</label>
+          <input id="syncInfoCode" readonly onclick="this.select()" style="margin-bottom:6px;font-family:monospace">
+          <label class="small">firebaseConfig (통째로 붙여넣기)</label>
+          <textarea id="syncInfoCfg" readonly onclick="this.select()" style="height:90px;font-size:11px;font-family:monospace"></textarea>
+          <button class="btn ghost mini" style="margin-top:6px" onclick="copySyncInfo()">코드+config 한 번에 복사</button>
+        </div>
       </div>
       <p class="meta" style="margin-top:8px">🔒 학원 코드를 아는 기기만 데이터에 접근합니다. 코드는 길고 추측 어렵게 설정하세요.</p>
     </div>
@@ -299,8 +311,21 @@ if("serviceWorker" in navigator && location.protocol === "https:"){
         </select>
         <input type="time" id="newClsTime" value="16:00" style="background:var(--paper)">
         <input id="newClsName" class="span2" placeholder="반 이름 (예: 고2 정치)">
-        <button class="btn span2" onclick="addClass()">시간표에 추가</button>
+        <button class="btn span2" onclick="addClass()">시간표에 추가 → 바로 명단 입력</button>
       </div>
+    </div>
+    <div class="card" style="padding:10px 12px">
+      <div class="row" style="margin-bottom:8px">
+        <div class="grow"><b style="color:var(--teal)" id="ttSummary"></b></div>
+        <button class="btn ghost mini" onclick="downloadTimetableCSV()">⬇ CSV</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="ttFilterChips"></div>
+    </div>
+    <div class="card">
+      <b style="color:var(--teal)">📋 여러 반 명단 한 번에 가져오기</b>
+      <p class="meta" style="margin:6px 0 6px">반마다 <b># 요일 시간 반이름</b> 한 줄을 쓰고, 그 아래 <b>이름(학교)</b>를 쉼표로 나열하세요. 같은 요일·시간의 빈 슬롯이 있으면 그 슬롯을 사용하고, 없으면 새 반을 만듭니다.</p>
+      <textarea id="ttImportBox" style="height:120px;font-size:13px" placeholder="# 일 10:00 세계사&#10;정예림(대구여고), 김지윤(동문고), 허유정(동문고)&#10;# 토 18:00 세계지리&#10;김지윤(동문고), 강윤성(경북고)"></textarea>
+      <button class="btn" style="width:100%;margin-top:8px" onclick="importRosterText()">가져오기 실행</button>
     </div>
     <div id="classList"></div>
   </section>
@@ -355,7 +380,7 @@ let studentFilter = "all"; // all | single | multi
 const act = () => students.filter(s=>!s.leftAt && !s.pause);
 
 // ── 원생(사람) 단위 식별 · 과목 ──
-const SUBJECTS = ["한국사","통합사회","사회","역사","사회문화","윤리와 사상","정치와 법","지리","경제","세계사","동아시아사","기타"];
+const SUBJECTS = ["한국사","통합사회","사회","역사","사회문화","현대사회와 윤리","윤리와 사상","정치와 법","세계지리","한국지리","지리","경제","세계사","동아시아사","기타"];
 const normKey = s => (s.name||"").trim() + "|" + (s.school||"").trim();
 function deriveSubject(txt){
   if(!txt) return null;
@@ -363,10 +388,13 @@ function deriveSubject(txt){
   if(/통합사회|통사/.test(t)) return "통합사회";
   if(/한국사/.test(t)) return "한국사";
   if(/사회문화|사문/.test(t)) return "사회문화";
+  if(/현윤|현대사회와윤리|현대사회윤리/.test(t)) return "현대사회와 윤리";
   if(/윤리|윤사/.test(t)) return "윤리와 사상";
   if(/정치|정법/.test(t)) return "정치와 법";
   if(/동아시아사/.test(t)) return "동아시아사";
   if(/세계사/.test(t)) return "세계사";
+  if(/세지|세계지리/.test(t)) return "세계지리";
+  if(/한지|한국지리/.test(t)) return "한국지리";
   if(/역사/.test(t)) return "역사";
   if(/지리/.test(t)) return "지리";
   if(/경제/.test(t)) return "경제";
@@ -483,14 +511,38 @@ function renderSyncCard(){
   if(b) b.style.display = on ? "block" : "none";
 }
 
+// 학원 기본 Firebase 설정 (isaem-5614a) — 웹 apiKey는 공개 식별자이며, 데이터 접근은 보안 규칙 + 학원 코드로 제한됨
+const DEFAULT_FB_CFG = {
+  apiKey: "AIzaSyCD2fmE3dR1X8CELm0wKuhl48OmNhQuNAk",
+  authDomain: "isaem-5614a.firebaseapp.com",
+  projectId: "isaem-5614a",
+  storageBucket: "isaem-5614a.firebasestorage.app",
+  messagingSenderId: "568072604902",
+  appId: "1:568072604902:web:9ea20e3c71ca2067e2bf27"
+};
 async function connectSync(){
-  const cfg = parseFirebaseCfg(document.getElementById("syncCfg").value);
+  const cfgTxt = document.getElementById("syncCfg").value.trim();
+  const cfg = cfgTxt ? parseFirebaseCfg(cfgTxt) : DEFAULT_FB_CFG;
   const code = document.getElementById("syncCode").value.trim();
   if(!cfg){ toast("firebaseConfig 붙여넣기가 올바르지 않아요 — apiKey와 projectId가 포함돼야 해요"); return; }
-  if(code.length < 8){ toast("학원 코드는 8자 이상으로 설정해 주세요 (비밀번호 역할)"); return; }
+  if(code.length < 12){ toast("학원 코드는 12자 이상이어야 해요"); return; }
   try{ localStorage.setItem(SYNC_KEY, JSON.stringify({cfg, code})); }catch(e){ toast("이 브라우저는 설정 저장이 안 돼요"); return; }
   renderSyncCard();
   await initSync(true);
+}
+function showSyncInfo(){
+  const saved = getSyncCfg(); if(!saved){ toast("연결된 동기화 정보가 없어요"); return; }
+  const box = document.getElementById("syncInfoBox");
+  box.style.display = box.style.display==="none" ? "block" : "none";
+  document.getElementById("syncInfoCode").value = saved.code;
+  document.getElementById("syncInfoCfg").value = "const firebaseConfig = " + JSON.stringify(saved.cfg, null, 2) + ";";
+}
+function copySyncInfo(){
+  const saved = getSyncCfg(); if(!saved) return;
+  const text = "[이샘 출석부 동기화 정보]\n학원 코드: " + saved.code + "\n\nconst firebaseConfig = " + JSON.stringify(saved.cfg, null, 2) + ";";
+  const done = ()=>toast("복사했어요 — 아이폰 카톡(나에게)으로 보내 붙여넣으세요");
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
+  else fallbackCopy(text, done);
 }
 function disconnectSync(){
   if(syncUnsub){ syncUnsub(); syncUnsub = null; }
@@ -1174,10 +1226,157 @@ function addClass(){
   const time = document.getElementById("newClsTime").value;
   const name = document.getElementById("newClsName").value.trim();
   if(!time){ toast("시간을 선택해 주세요"); return; }
-  classes.push({id:uid(), day, time, name});
+  const c = {id:uid(), day, time, name};
+  classes.push(c);
   document.getElementById("newClsName").value="";
+  rosterOpenId = c.id; ttFilter = "all";
   save(); render();
-  toast("수업을 추가했어요: " + DAYS[day] + " " + fmtTime(time) + (name?" "+name:""));
+  toast("수업을 추가했어요: " + DAYS[day] + " " + fmtTime(time) + (name?" "+name:"") + " — 아래 명단 입력란에 학생을 넣어 주세요");
+  setTimeout(()=>{ const el = document.getElementById("cls-"+c.id); if(el) el.scrollIntoView({block:"start",behavior:"smooth"}); }, 60);
+}
+
+// ── 시간표 명단 관리 ──
+let rosterOpenId = null;   // 명단 패널이 열린 반
+let ttFilter = "all";      // all | empty | 요일 숫자
+function toggleRoster(id){ rosterOpenId = rosterOpenId===id ? null : id; render(); }
+function setTtFilter(v){ ttFilter = v; render(); }
+
+// 시간표 화면에서 바로 반 이동 (이동 이력 자동 기록)
+function moveFromTimetable(sid, clsId){
+  const s = students.find(x=>x.id===sid); if(!s) return;
+  const to = clsId || null;
+  if(to === s.classId) return;
+  (s.transfers = s.transfers || []).push({date:today(), fromId:s.classId||null, from:clsLabel(clsById(s.classId)), toId:to, to:clsLabel(clsById(to)), reason:"시간표에서 이동"});
+  s.classId = to;
+  save(); render();
+  toast(`${s.name} → ${clsLabel(clsById(to))}`);
+}
+
+// 반 복제 (같은 이름의 수업을 다른 요일·시간에 하나 더)
+function cloneClass(id){
+  const c = clsById(id); if(!c) return;
+  document.getElementById("newClsDay").value = String(c.day);
+  document.getElementById("newClsTime").value = c.time;
+  document.getElementById("newClsName").value = c.name;
+  window.scrollTo({top:0, behavior:"smooth"});
+  toast("상단 추가란에 복사했어요 — 요일·시간을 바꿔 「시간표에 추가」를 누르세요");
+}
+
+// 명단 일괄 입력: 한 줄에 한 명 — 「이름 학교 과목」 (학교·과목 생략 가능, 쉼표·공백 구분)
+// 공통: 반에 명단 반영 — entries [{name, school, subject}]
+function schoolMatch(a, b){
+  a = (a||"").replace(/\s/g,""); b = (b||"").replace(/\s/g,"");
+  if(!a || !b) return true;
+  return a===b || a.startsWith(b) || b.startsWith(a);
+}
+function addNamesToClass(cid, entries, fee, feeLabel){
+  const c = clsById(cid); if(!c) return {added:0,moved:0,kept:0,movedNames:[]};
+  const clsSubject = deriveSubject(c.name);
+  let added=0, moved=0, kept=0; const movedNames=[];
+  entries.forEach(e=>{
+    const name = (e.name||"").trim(); if(!name) return;
+    const school = (e.school||"").trim();
+    const subject = e.subject || clsSubject || null;
+    const sameSubj = x => (subject ? subjOf(x)===subject : true);
+    // 1) 이미 이 반에 있는 같은 이름(·학교) → 유지
+    const inCls = act().find(x=>x.classId===cid && x.name===name && schoolMatch(x.school, school));
+    if(inCls){ if(school && !inCls.school) inCls.school = school; kept++; return; }
+    // 2) 다른 반·미배정에 재원 중인 같은 이름·학교·같은 과목 → 반 이동
+    const cand = act().filter(x=>x.name===name && schoolMatch(x.school, school) && sameSubj(x));
+    if(cand.length===1){
+      const s = cand[0];
+      (s.transfers = s.transfers||[]).push({date:today(), fromId:s.classId||null, from:clsLabel(clsById(s.classId)), toId:cid, to:clsLabel(c), reason:"명단 입력으로 이동"});
+      s.classId = cid; if(school && !s.school) s.school = school; moved++; movedNames.push(name); return;
+    }
+    // 3) 신규 등록 — 같은 이름·학교의 기존 원생이 있으면 같은 원생 ID로 묶음(다과목)
+    const same = students.filter(x=>!x.leftAt && x.name===name && schoolMatch(x.school, school));
+    const pids = [...new Set(same.map(x=>x.pid))];
+    const nsch = x => (x||"").replace(/\s/g,"");
+    const oneSchool = new Set(same.map(x=>nsch(x.school))).size===1;
+    const dup = (pids.length===1 || oneSchool) ? (same[0]||null) : (same.find(x=>nsch(x.school)===nsch(school)) || null);
+    const pid = dup ? dup.pid : "p"+uid();
+    const sch = (dup && dup.school) ? dup.school : school;
+    students.push({id:uid(), pid, name, school:sch, subject, classId:cid, fee:fee||null, feeLabel:feeLabel||null, attendances:[], paidSessions:0, payments:[], joinedAt:today(), leftAt:null, transfers:[], pause:null, pauses:[]});
+    added++;
+  });
+  return {added,moved,kept,movedNames};
+}
+// 「이름(학교) 과목」 / 「이름 학교 과목」 한 조각 → entry
+function parseEntry(txt){
+  let t = txt.trim(); if(!t) return null;
+  let school = "", subject = null;
+  const m = t.match(/^(.+?)\s*\((.+?)\)\s*(.*)$/);
+  let rest;
+  if(m){ t = m[1].trim(); school = m[2].trim(); rest = m[3].trim(); }
+  else { const parts = t.split(/\s+/); t = parts[0]; rest = parts.slice(1).join(" "); }
+  rest.split(/\s+/).filter(Boolean).forEach(p=>{
+    const sj = SUBJECTS.includes(p) ? p : deriveSubject(p);
+    if(sj && (SUBJECTS.includes(p) || /통사|사문|윤사|현윤|정법|세지|한지|한국사|사회|역사|지리|경제|세계사|윤리/.test(p))) subject = subject || sj;
+    else school = school || p;
+  });
+  return {name:t, school, subject};
+}
+// 명단 일괄 입력(반 카드 안): 한 줄에 한 명, 쉼표로 여러 명도 가능
+function bulkAddRoster(cid){
+  const box = document.getElementById("roster-in-"+cid);
+  const feeSel = document.getElementById("roster-fee-"+cid);
+  const entries = (box.value||"").split(/[\n,]/).map(parseEntry).filter(Boolean);
+  if(!entries.length){ toast("명단을 한 줄에 한 명씩 입력해 주세요"); return; }
+  let fee = null, feeLabel = null;
+  if(feeSel && feeSel.value!==""){ const p = PRESETS[Number(feeSel.value)]; if(p){ fee = p.value; feeLabel = p.label; } }
+  const r = addNamesToClass(cid, entries, fee, feeLabel);
+  box.value = "";
+  save(); render();
+  toast(`명단 반영 — 신규 ${r.added}명 · 이동 ${r.moved}명${r.movedNames.length?" ("+r.movedNames.join(", ")+")":""} · 이미 있음 ${r.kept}명`);
+}
+// 여러 반 한 번에 가져오기
+// 형식:  # 요일 시간 반이름   (예: # 일 10:00 세계사)
+//        이름(학교), 이름(학교), ...   ← 쉼표 또는 줄바꿈 구분
+function importRosterText(){
+  const box = document.getElementById("ttImportBox");
+  const lines = (box.value||"").split(/\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ toast("가져올 내용을 붙여넣어 주세요"); return; }
+  const dayIdx = {"일":0,"월":1,"화":2,"수":3,"목":4,"금":5,"토":6};
+  let cur = null, made=0, reused=0, tot={added:0,moved:0,kept:0}; const log=[];
+  const flush = ()=>{ if(!cur) return; const r = addNamesToClass(cur.id, cur.entries, null, null); tot.added+=r.added; tot.moved+=r.moved; tot.kept+=r.kept; log.push(`${clsLabel(cur)} ${cur.entries.length}명`); };
+  for(const line of lines){
+    const h = line.match(/^#\s*([일월화수목금토])(?:요일)?\s*(오전|오후)?\s*(\d{1,2})(?::(\d{2}))?(?:시)?\s*(.*)$/);
+    if(h){
+      flush();
+      const day = dayIdx[h[1]]; let hh = Number(h[3]); const mm = h[4]||"00";
+      if(h[2]==="오후" && hh<12) hh += 12;
+      if(!h[2] && hh<9) hh += 12; // 「6시」처럼 오전·오후 없이 9 미만이면 오후로 간주
+      const time = String(hh).padStart(2,"0")+":"+mm;
+      const name = (h[5]||"").trim();
+      let c = classes.find(x=>x.day===day && x.time===time && x.name===name);
+      if(!c){
+        const emptySlot = classes.find(x=>x.day===day && x.time===time && !x.name && act().filter(s=>s.classId===x.id).length===0);
+        if(emptySlot){ emptySlot.name = name; c = emptySlot; reused++; }
+        else { c = {id:uid(), day, time, name}; classes.push(c); made++; }
+      } else reused++;
+      cur = Object.assign({entries:[]}, c);
+      continue;
+    }
+    if(!cur){ toast("첫 줄은 「# 요일 시간 반이름」 형식이어야 해요 (예: # 일 10:00 세계사)"); return; }
+    line.split(/,|、/).map(parseEntry).filter(Boolean).forEach(e=>cur.entries.push(e));
+  }
+  flush();
+  box.value = ""; ttFilter = "all";
+  save(); render();
+  alert(`가져오기 완료\n\n반 신설 ${made}개 · 기존/빈 슬롯 사용 ${reused}개\n학생 신규 ${tot.added}명 · 이동 ${tot.moved}명 · 이미 있음 ${tot.kept}명\n\n${log.join("\n")}`);
+}
+function downloadTimetableCSV(){
+  const rows = [["요일","시간","반 이름","학생명","학교","과목","잔여 횟수"]];
+  sortedClasses().forEach(c=>{
+    const m = act().filter(s=>s.classId===c.id);
+    if(!m.length) rows.push([DAYS[c.day], fmtTime(c.time), c.name||"(빈 슬롯)", "", "", "", ""]);
+    m.forEach(s=>rows.push([DAYS[c.day], fmtTime(c.time), c.name||"", s.name, s.school||"", subjOf(s), rem(s)]));
+  });
+  const csv = "﻿" + rows.map(r=>r.map(x=>'"'+String(x??"").replace(/"/g,'""')+'"').join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download = `시간표_명단_${today()}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  toast("시간표 명단 CSV 저장");
 }
 function startEditClass(id){ editingClassId = editingClassId===id ? null : id; render(); }
 function saveEditClass(id){
@@ -1514,35 +1713,70 @@ function render(){
 
   // ── 시간표 탭 ──
   const cl = document.getElementById("classList");
+  const allCls = sortedClasses();
+  const cntOf = c => act().filter(s=>s.classId===c.id).length;
+  const emptyCnt = allCls.filter(c=>cntOf(c)===0).length;
+  const enrollCnt = act().filter(s=>s.classId).length;
+  document.getElementById("ttSummary").textContent = `반 ${allCls.length}개 · 수강 ${enrollCnt}건 · 빈 슬롯 ${emptyCnt}개`;
+  document.getElementById("ttFilterChips").innerHTML =
+    [["all","전체"],["empty","빈 슬롯만"],...DAY_ORDER.map(d=>[String(d),DAYS[d]])].map(([k,l])=>
+      `<button class="switch${ttFilter===k?" on":""}" style="padding:5px 10px" onclick="setTtFilter('${k}')">${l}</button>`).join("");
   let th = "";
   DAY_ORDER.forEach(day=>{
-    const list = sortedClasses().filter(c=>c.day===day);
+    if(ttFilter!=="all" && ttFilter!=="empty" && Number(ttFilter)!==day) return;
+    let list = allCls.filter(c=>c.day===day);
+    if(ttFilter==="empty") list = list.filter(c=>cntOf(c)===0);
     if(!list.length) return;
-    th += `<div class="dayhead">${DAYS[day]}요일</div>`;
+    th += `<div class="dayhead">${DAYS[day]}요일 <span style="opacity:.75;font-weight:700">· ${list.length}반</span></div>`;
     list.forEach(c=>{
-      const cnt = act().filter(s=>s.classId===c.id).length;
+      const members = act().filter(s=>s.classId===c.id).sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+      const cnt = members.length;
+      const isEmpty = cnt===0;
       const editing = editingClassId===c.id;
-      th += `<div class="card">
+      const open = rosterOpenId===c.id;
+      th += `<div class="card" id="cls-${c.id}" style="${isEmpty?"border:2px dashed var(--yellow);background:#FFFDF0":""}${open?";border-color:var(--teal)":""}">
         <div class="row">
-          <div class="grow">
-            <div class="name" style="font-size:14px">🕐 ${fmtTime(c.time)}${c.name?` <span style="font-weight:700">· ${esc(c.name)}</span>`:""}</div>
-            <div class="meta">학생 ${cnt}명</div>
+          <div class="grow" onclick="toggleRoster('${c.id}')" style="cursor:pointer">
+            <div class="name" style="font-size:14px">🕐 ${fmtTime(c.time)}${c.name?` <span style="font-weight:700">· ${esc(c.name)}</span>`:` <span class="badge">빈 슬롯</span>`}</div>
+            <div class="meta">${isEmpty?"학생 없음 — 탭해서 명단 입력 · 수정으로 반 이름 지정":`학생 ${cnt}명 · ${members.slice(0,4).map(s=>esc(s.name)).join(", ")}${cnt>4?" 외 "+(cnt-4)+"명":""}`}</div>
           </div>
+          <button class="btn mini" onclick="toggleRoster('${c.id}')">${open?"접기":"명단"}</button>
           <button class="btn ghost mini" onclick="startEditClass('${c.id}')">${editing?"닫기":"수정"}</button>
-          <button class="btn danger" onclick="removeClass('${c.id}')">삭제</button>
         </div>
         ${editing?`<div class="editbox form-grid">
           <select id="ed-day-${c.id}">
             ${DAY_ORDER.map(dd=>`<option value="${dd}"${dd===c.day?" selected":""}>${DAYS[dd]}요일</option>`).join("")}
           </select>
           <input type="time" id="ed-time-${c.id}" value="${c.time}">
-          <input id="ed-name-${c.id}" class="span2" value="${esc(c.name)}" placeholder="반 이름">
-          <button class="btn span2" onclick="saveEditClass('${c.id}')">변경 저장</button>
+          <input id="ed-name-${c.id}" class="span2" value="${esc(c.name)}" placeholder="반 이름 (예: 사회② / KEEP 통사)">
+          <button class="btn span2" onclick="saveEditClass('${c.id}')">변경 저장${cnt?" (학생 "+cnt+"명 그대로 유지)":""}</button>
+          <button class="btn ghost mini" onclick="cloneClass('${c.id}')">같은 반 다른 시간에 복제</button>
+          <button class="btn danger" onclick="removeClass('${c.id}')">이 수업 삭제</button>
+        </div>`:""}
+        ${open?`<div class="editbox">
+          ${cnt?`<div style="font-weight:800;color:var(--teal);font-size:13px;margin-bottom:6px">👥 명단 ${cnt}명 — 오른쪽에서 다른 반으로 바로 이동</div>`:""}
+          ${members.map(s=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)">
+            <div class="grow">
+              <span style="font-weight:800">${esc(s.name)}</span>${s.school?`<span class="school">${esc(s.school)}</span>`:""}
+              <span class="classtag" style="margin-top:0">${esc(subjOf(s))}</span>
+              <div class="meta" style="margin-top:2px">잔여 ${rem(s)}회${rem(s)<=0?" · <b style='color:#B3261E'>결제 필요</b>":""}</div>
+            </div>
+            <select style="width:150px;font-size:12px;padding:7px 8px" onchange="moveFromTimetable('${s.id}', this.value)">${classOptionsHTML(s.classId, true)}</select>
+          </div>`).join("")}
+          <div style="margin-top:10px">
+            <label class="small">➕ 명단 입력 — 한 줄에 한 명: <span style="color:#8b9492;font-weight:600">이름 학교 과목</span> (학교·과목은 생략 가능)</label>
+            <textarea id="roster-in-${c.id}" style="height:96px;margin-top:4px" placeholder="김지윤 경신고&#10;허유정 대구여고 통합사회&#10;박경민"></textarea>
+            <div class="form-grid" style="margin-top:6px">
+              <select id="roster-fee-${c.id}"><option value="">신규 학생 수업료 (나중에 지정)</option>${PRESETS.map((p,i)=>`<option value="${i}">${p.label}</option>`).join("")}</select>
+              <button class="btn" onclick="bulkAddRoster('${c.id}')">명단 반영</button>
+            </div>
+            <p class="meta" style="margin:6px 0 0">· 이미 재원 중인 같은 이름의 학생은 <b>이 반으로 이동</b>(이력 기록), 없는 이름은 <b>신규 등록</b>됩니다. 과목을 비우면 반 이름에서 자동 판별합니다.</p>
+          </div>
         </div>`:""}
       </div>`;
     });
   });
-  cl.innerHTML = th || `<div class="empty"><p>등록된 수업이 없어요.</p></div>`;
+  cl.innerHTML = th || `<div class="empty"><p>${ttFilter==="empty"?"빈 슬롯이 없어요 — 모든 반에 학생이 있습니다.":"등록된 수업이 없어요."}</p></div>`;
 
   // ── 현황 탭 ──
   renderStatus();
