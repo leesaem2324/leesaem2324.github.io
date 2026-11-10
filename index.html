@@ -219,6 +219,30 @@ if("serviceWorker" in navigator && location.protocol === "https:"){
         <button class="btn span2" onclick="addStudent()">등록하기</button>
       </div>
     </div>
+    <div class="card">
+      <div class="row">
+        <b style="color:var(--teal)" class="grow">⚙ 과목·수업료 항목 관리</b>
+        <button class="btn ghost mini" id="optMgrBtn" onclick="toggleOptMgr()">열기</button>
+      </div>
+      <div id="optMgrBody" style="display:none;margin-top:10px">
+        <label class="small" style="font-weight:800;color:var(--teal)">수강 과목 목록</label>
+        <div id="subjChips" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="newSubjOpt" placeholder="새 과목 이름 (예: 동아시아 역사 기행)" style="flex:1">
+          <button class="btn mini" onclick="addSubjectOpt()">추가</button>
+        </div>
+        <div style="border-top:1px dashed var(--line);margin:12px 0 10px"></div>
+        <label class="small" style="font-weight:800;color:var(--teal)">수업료 항목 목록</label>
+        <div id="feeRows" style="margin:6px 0 8px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="newFeeLabel" placeholder="항목명 (예: 고등 28만원)" style="flex:2">
+          <input id="newFeeAmt" placeholder="금액(원)" inputmode="numeric" style="flex:1">
+          <button class="btn mini" onclick="addFeeOpt()">추가</button>
+        </div>
+        <p class="meta" style="margin-top:10px">항목을 삭제해도 이미 등록된 학생의 과목·수업료는 그대로 유지되고 선택 목록에서만 빠집니다. 변경 내용은 저장·동기화되어 모든 기기에 함께 적용됩니다.</p>
+        <button class="btn ghost mini" style="margin-top:4px" onclick="resetOptLists()">기본 목록으로 복원</button>
+      </div>
+    </div>
     <div id="studentList"></div>
     <div class="card" style="margin-top:16px">
       <b style="color:var(--teal)">데이터 백업 · 복원</b>
@@ -339,7 +363,7 @@ const KEY_V1 = "isaem-attendance-v1";
 const DAYS = ["일","월","화","수","목","금","토"];
 const DAY_ORDER = [1,2,3,4,5,6,0];
 
-const PRESETS = [
+const DEFAULT_PRESETS = [
   {label:"초등 15만원", value:150000},
   {label:"중등 18만원", value:180000},
   {label:"중등 사회2 20만원", value:200000},
@@ -353,6 +377,7 @@ const PRESETS = [
   {label:"통합사회 특강 30만원", value:300000},
   {label:"한국사 특강 30만원", value:300000},
 ];
+let PRESETS = [...DEFAULT_PRESETS];
 
 // 기본 시간표 (요일, 시간, 반 이름)
 const SEED_CLASSES = [
@@ -380,7 +405,16 @@ let studentFilter = "all"; // all | single | multi
 const act = () => students.filter(s=>!s.leftAt && !s.pause);
 
 // ── 원생(사람) 단위 식별 · 과목 ──
-const SUBJECTS = ["한국사","통합사회","사회","역사","사회문화","현대사회와 윤리","윤리와 사상","정치와 법","세계지리","한국지리","지리","경제","세계사","동아시아사","기타"];
+const DEFAULT_SUBJECTS = ["한국사","통합사회","사회","역사","사회문화","현대사회와 윤리","윤리와 사상","정치와 법","세계지리","한국지리","지리","경제","세계사","동아시아사","기타"];
+let SUBJECTS = [...DEFAULT_SUBJECTS];
+// settings에 저장된 사용자 정의 목록을 SUBJECTS/PRESETS에 반영
+function applyCustomLists(){
+  SUBJECTS = (Array.isArray(settings.subjects) && settings.subjects.length)
+    ? settings.subjects.map(String) : [...DEFAULT_SUBJECTS];
+  PRESETS = (Array.isArray(settings.feePresets) && settings.feePresets.length)
+    ? settings.feePresets.filter(p=>p && p.label).map(p=>({label:String(p.label), value:Number(p.value)||0}))
+    : [...DEFAULT_PRESETS];
+}
 const normKey = s => (s.name||"").trim() + "|" + (s.school||"").trim();
 function deriveSubject(txt){
   if(!txt) return null;
@@ -602,6 +636,7 @@ function applyRemote(d){
     if(Array.isArray(parsed.students)) students = parsed.students;
     if(Array.isArray(parsed.classes) && parsed.classes.length) classes = parsed.classes;
     if(parsed.settings && typeof parsed.settings==="object") settings = {account:"", ...parsed.settings};
+    applyCustomLists();
     migrate();
     save(); // 로컬 저장만 수행 (applyingRemote 중에는 클라우드 재업로드 안 함)
     render();
@@ -638,6 +673,7 @@ async function load(){
       if(Array.isArray(d.students)) students = d.students;
       if(Array.isArray(d.classes)) classes = d.classes;
       if(d.settings && typeof d.settings==="object") settings = {account:"", ...d.settings};
+    applyCustomLists();
     }
   }catch(e){}
   if(classes.length===0){
@@ -697,6 +733,7 @@ function importData(){
     students = d.students;
     if(Array.isArray(d.classes) && d.classes.length) classes = d.classes;
     if(d.settings && typeof d.settings==="object") settings = {account:"", ...d.settings};
+    applyCustomLists();
     migrate();
     save(); render();
     box.style.display="none";
@@ -850,9 +887,84 @@ function moveClass(id, clsId){
   save(); render();
   toast(s.name + " → " + clsLabel(clsById(s.classId)));
 }
+// ── ⚙ 과목·수업료 항목 관리 ──
+let optMgrOpen = false;
+function toggleOptMgr(){
+  optMgrOpen = !optMgrOpen;
+  document.getElementById("optMgrBody").style.display = optMgrOpen ? "block" : "none";
+  document.getElementById("optMgrBtn").textContent = optMgrOpen ? "닫기" : "열기";
+  if(optMgrOpen) renderOptMgr();
+}
+function refreshOptSelects(){
+  const nf = document.getElementById("newFee"); if(nf) nf.innerHTML = "";
+  const ns = document.getElementById("newSubject"); if(ns) ns.innerHTML = "";
+}
+function saveOptLists(){
+  settings.subjects = [...SUBJECTS];
+  settings.feePresets = PRESETS.map(p=>({label:p.label, value:p.value}));
+  refreshOptSelects();
+  save(); render(); renderOptMgr();
+}
+function addSubjectOpt(){
+  const el = document.getElementById("newSubjOpt");
+  const v = el.value.trim();
+  if(!v){ toast("과목 이름을 입력해 주세요"); return; }
+  if(SUBJECTS.includes(v)){ toast("이미 목록에 있는 과목이에요"); return; }
+  SUBJECTS = SUBJECTS.includes("기타")
+    ? [...SUBJECTS.filter(x=>x!=="기타"), v, "기타"]
+    : [...SUBJECTS, v];
+  el.value = "";
+  saveOptLists();
+  toast(`과목 「${v}」 추가 완료`);
+}
+function removeSubjectOpt(i){
+  const v = SUBJECTS[i];
+  if(!confirm(`과목 「${v}」을(를) 선택 목록에서 삭제할까요?\n이미 이 과목으로 등록된 학생은 그대로 유지됩니다.`)) return;
+  SUBJECTS = SUBJECTS.filter((_,idx)=>idx!==i);
+  saveOptLists();
+}
+function addFeeOpt(){
+  const lEl = document.getElementById("newFeeLabel"), aEl = document.getElementById("newFeeAmt");
+  const label = lEl.value.trim();
+  const amt = Number(String(aEl.value).replace(/[^0-9]/g,""));
+  if(!label){ toast("항목명을 입력해 주세요"); return; }
+  if(!amt){ toast("금액을 숫자로 입력해 주세요"); return; }
+  if(PRESETS.some(p=>p.label===label)){ toast("같은 이름의 수업료 항목이 이미 있어요"); return; }
+  PRESETS = [...PRESETS, {label, value:amt}];
+  lEl.value = ""; aEl.value = "";
+  saveOptLists();
+  toast(`수업료 항목 「${label}」 추가 완료`);
+}
+function removeFeeOpt(i){
+  const p = PRESETS[i];
+  if(!confirm(`수업료 항목 「${p.label}」을(를) 삭제할까요?\n이미 이 항목으로 등록된 학생의 수업료는 그대로 유지됩니다.`)) return;
+  PRESETS = PRESETS.filter((_,idx)=>idx!==i);
+  saveOptLists();
+}
+function resetOptLists(){
+  if(!confirm("과목·수업료 목록을 기본값으로 복원할까요?\n직접 추가한 항목은 목록에서 사라집니다. (학생 데이터에는 영향 없음)")) return;
+  delete settings.subjects;
+  delete settings.feePresets;
+  applyCustomLists();
+  refreshOptSelects();
+  save(); render(); renderOptMgr();
+  toast("기본 목록으로 복원했어요");
+}
+function renderOptMgr(){
+  const sc = document.getElementById("subjChips");
+  if(sc) sc.innerHTML = SUBJECTS.map((x,i)=>
+    `<span class="classtag" style="display:inline-flex;align-items:center;gap:5px">${esc(x)}<button onclick="removeSubjectOpt(${i})" style="border:none;background:none;color:#B3261E;font-weight:900;cursor:pointer;padding:0;font-size:13px" aria-label="삭제">✕</button></span>`).join("");
+  const fr = document.getElementById("feeRows");
+  if(fr) fr.innerHTML = PRESETS.map((p,i)=>
+    `<div class="row" style="padding:4px 0;border-bottom:1px solid var(--line)">
+      <span class="grow" style="font-size:13px"><b>${esc(p.label)}</b> <span class="meta">— ${won(p.value)}</span></span>
+      <button class="btn danger" style="padding:4px 10px;font-size:11px" onclick="removeFeeOpt(${i})">삭제</button>
+    </div>`).join("");
+}
 function subjectOptionsHTML(sel){
   let h = `<option value=""${!sel || sel==="미지정" ? " selected":""}>과목 미지정</option>`;
   SUBJECTS.forEach(x=>{ h += `<option value="${x}"${x===sel?" selected":""}>${x}</option>`; });
+  if(sel && sel!=="미지정" && !SUBJECTS.includes(sel)) h += `<option value="${esc(sel)}" selected>${esc(sel)}</option>`;
   return h;
 }
 function changeSubject(id, v){
@@ -1551,6 +1663,7 @@ function render(){
   if(nsj.options.length===0){
     nsj.innerHTML = '<option value="">수강 과목 선택</option>' + SUBJECTS.map(x=>`<option value="${x}">${x}</option>`).join("");
   }
+  if(optMgrOpen) renderOptMgr();
   // 인원 현황 — 재원(leftAt 없음)만 대상, 전 과목 통합
   const activeAll = act(); // 총 수강 건수(과목인원)
   const uniqCount = new Set(activeAll.map(s=>s.pid)).size; // 실인원(원생 ID 중복 제거)
